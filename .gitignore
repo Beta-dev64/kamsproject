@@ -17,7 +17,7 @@ build/
 *.tsbuildinfo
 
 # Logs
-logs/
+# logs/
 *.log
 combined.log
 error.log
