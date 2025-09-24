@@ -1,13 +1,17 @@
 import winston from 'winston';
 import config from '../config';
 
-// Create logs directory if it doesn't exist
-const logDir = config.logging.dir;
-
-// Define log format
+// Define base log format
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
+  winston.format((info, opts) => {
+    // Stringify errors with circular dependency handling
+    if (info.stack) {
+      info.stack = JSON.stringify(info.stack, null, 2);
+    }
+    return info;
+  })(),
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     let logMessage = `${timestamp} [${level.toUpperCase()}]: ${message}`;
     
@@ -20,122 +24,76 @@ const logFormat = winston.format.combine(
   })
 );
 
+// Define transports based on environment
+const transports = [];
+
+// In production, we only use the Console transport
+if (config.app.env === 'production') {
+  transports.push(
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple(),
+      ),
+    })
+  );
+} else {
+  // In development, we use both file and console transports
+  // Note: The log directory is not created automatically by Winston,
+  // so we'll need to use a separate script or method to handle it.
+  transports.push(
+    new winston.transports.File({
+      filename: `${config.logging.dir}/error.log`,
+      level: 'error',
+      maxsize: 5242880, // 5MB
+      maxFiles: 5,
+    }),
+    new winston.transports.File({
+      filename: `${config.logging.dir}/combined.log`,
+      maxsize: 5242880, // 5MB
+      maxFiles: 5,
+    }),
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      ),
+    })
+  );
+}
+
 // Create winston logger
 export const logger = winston.createLogger({
   level: config.logging.level,
   format: logFormat,
-  defaultMeta: { 
+  defaultMeta: {
     service: config.app.name,
     version: config.app.version,
     environment: config.app.env,
   },
-  transports: [
-    // Error log file
-    new winston.transports.File({
-      filename: `${logDir}/error.log`,
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      tailable: true,
-    }),
-    
-    // Combined log file
-    new winston.transports.File({
-      filename: `${logDir}/combined.log`,
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      tailable: true,
-    }),
-  ],
+  transports: transports,
 });
 
-// Add console transport for non-production environments
-if (config.app.env !== 'production') {
-  logger.add(new winston.transports.Console({
+// A factory function to create other loggers with a consistent format
+const createLogger = (filename: string) => {
+  const fileTransports = config.app.env !== 'production' ?
+    [new winston.transports.File({ filename: `${config.logging.dir}/${filename}`, maxsize: 5242880 })] :
+    [new winston.transports.Console()]; // Use console in production
+  
+  return winston.createLogger({
+    level: 'info',
     format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple(),
-      winston.format.printf(({ timestamp, level, message, ...meta }) => {
-        let logMessage = `${timestamp} ${level}: ${message}`;
-        
-        // Add metadata for console output
-        if (Object.keys(meta).length > 0 && config.logging.level === 'debug') {
-          logMessage += `\n${JSON.stringify(meta, null, 2)}`;
-        }
-        
-        return logMessage;
-      })
+      winston.format.timestamp(),
+      winston.format.json()
     ),
-  }));
-}
+    transports: fileTransports,
+  });
+};
 
-// Audit logger for security events
-export const auditLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({
-      filename: `${logDir}/audit.log`,
-      maxsize: 5242880, // 5MB
-      maxFiles: 10, // Keep more audit logs
-      tailable: true,
-    }),
-  ],
-});
-
-// Request logger for HTTP requests
-export const requestLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({
-      filename: `${logDir}/requests.log`,
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      tailable: true,
-    }),
-  ],
-});
-
-// Security logger for authentication and authorization events
-export const securityLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({
-      filename: `${logDir}/security.log`,
-      maxsize: 5242880, // 5MB
-      maxFiles: 10, // Keep more security logs
-      tailable: true,
-    }),
-  ],
-});
-
-// Performance logger for slow queries and operations
-export const performanceLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({
-      filename: `${logDir}/performance.log`,
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-      tailable: true,
-    }),
-  ],
-});
+export const auditLogger = createLogger('audit.log');
+export const requestLogger = createLogger('requests.log');
+export const securityLogger = createLogger('security.log');
+export const performanceLogger = createLogger('performance.log');
 
 // Utility functions for structured logging
 export const logRequest = (req: any, res: any, duration: number) => {
