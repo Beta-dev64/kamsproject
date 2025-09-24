@@ -57,6 +57,11 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // In production, allow all origins for now
+    if (config.app.env === 'production') {
+      return callback(null, true);
+    }
+    
     if (config.security.corsOrigins.includes(origin)) {
       return callback(null, true);
     }
