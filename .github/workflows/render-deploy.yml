@@ -25,8 +25,8 @@ jobs:
 
       - name: Trigger Render deploy
         env:
-          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: srv-d39sliadbo4c73clh3dg
+          RENDER_API_KEY: rnd_gm2qrie9DeqUhkU5nbfzUphcOaLH
         run: |
           curl -s -X POST \
             -H "accept: application/json" \
