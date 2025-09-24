@@ -21,18 +21,18 @@ export const extractTenant = async (req: AuthRequest, res: Response, next: NextF
     }
     
     // Method 2: Extract from subdomain (kam-assessment.example.com -> kam-assessment)
-    else {
-      const host = req.get('host');
-      if (host) {
-        // Skip localhost and IP addresses for development
-        if (!host.includes('localhost') && !host.match(/^\d+\.\d+\.\d+\.\d+/)) {
-          const subdomain = host.split('.')[0];
-          if (subdomain && subdomain !== 'www' && subdomain !== 'api') {
-            tenantDomain = subdomain;
-          }
-        }
-      }
-    }
+    // else {
+    //   const host = req.get('host');
+    //   if (host) {
+    //     // Skip localhost and IP addresses for development
+    //     if (!host.includes('localhost') && !host.match(/^\d+\.\d+\.\d+\.\d+/)) {
+    //       const subdomain = host.split('.')[0];
+    //       if (subdomain && subdomain !== 'www' && subdomain !== 'api') {
+    //         tenantDomain = subdomain;
+    //       }
+    //     }
+    //   }
+    // }
     
     // Method 3: Extract from request body for auth endpoints
     if (!tenantDomain && req.body?.tenantDomain) {
